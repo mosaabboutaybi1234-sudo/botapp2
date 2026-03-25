@@ -116,7 +116,7 @@ def get_form(team_id):
     return stats
 
 # ==============================
-# H2H AVG GOALS (FIXED 🔥)
+# H2H AVG GOALS
 # ==============================
 def get_h2h(home_id, away_id):
 
@@ -134,7 +134,7 @@ def get_h2h(home_id, away_id):
         games += 1
 
     if games == 0:
-        return None  # 🔥 FIX
+        return None
 
     return round(total_goals/games,2)
 
@@ -148,19 +148,16 @@ def score_match(h, a, odds, h2h):
 
     score = 0
 
-    # ATTACK
     if h["scored"] > 1.8:
         score += 4
     if a["scored"] > 1.8:
         score += 4
 
-    # OVER RATE
     if h["over15"] > 80:
         score += 3
     if a["over15"] > 75:
         score += 2
 
-    # 🔥 H2H ONLY IF EXISTS
     if h2h is not None:
         if h2h >= 3.2:
             score += 4
@@ -169,18 +166,15 @@ def score_match(h, a, odds, h2h):
         elif h2h >= 2.2:
             score += 2
 
-    # xG
     xg = ((h["scored"] + a["conceded"]) / 2) + ((a["scored"] + h["conceded"]) / 2)
     if xg > 2.5:
         score += 3
 
-    # DEFENSE (light penalty)
     if h["conceded"] < 0.7:
         score -= 2
     if a["conceded"] < 0.7:
         score -= 2
 
-    # ODDS
     if odds < 1.6:
         score += 4
     elif odds <= 1.8:
@@ -202,7 +196,7 @@ def get_conf(score):
         return 50
 
 # ==============================
-# AI FINAL
+# AI FINAL (FIXED OUTPUT)
 # ==============================
 def ai_analysis(match, h, a, xg, odds, conf, h2h):
 
@@ -220,19 +214,20 @@ H2H avg goals: {h2h_text}
 xG: {xg}
 Odds: {odds}
 
-Confidence base: {conf}
+Base confidence: {conf}
 
 Rules:
 - Ideal odds: 1.55–1.95
 - Odds >2.2 = NO PLAY
-- Attack more important than defense
+- Attack > defense
 - Ignore H2H if no data
-- Max realistic confidence = 80%
+- Max confidence = 80%
 
-Return:
-Confidence:
-Verdict:
-Reason:
+Return EXACTLY this format:
+
+Confidence: X%
+Verdict: PLAY or NO PLAY
+Reason: short explanation
 """
 
     res = client.chat.completions.create(
@@ -243,6 +238,19 @@ Reason:
     return res.choices[0].message.content
 
 # ==============================
+# SAFE VERDICT PARSER 🔥
+# ==============================
+def extract_verdict(ai_text):
+    text = ai_text.upper()
+
+    if "NO PLAY" in text:
+        return "NO PLAY"
+    elif "PLAY" in text:
+        return "PLAY"
+    else:
+        return "NO PLAY"  # fallback safety
+
+# ==============================
 # DISCORD
 # ==============================
 def send_to_discord(text):
@@ -251,7 +259,7 @@ def send_to_discord(text):
 # ==============================
 # UI
 # ==============================
-st.title("⚽ OVER 1.5 ELITE BOT V11")
+st.title("⚽ OVER 1.5 ELITE BOT V12")
 
 q = st.text_input("🔍 Zoek team")
 teams = search_teams(q)
@@ -293,7 +301,9 @@ if st.button("Analyse Match"):
     ai_result = ai_analysis(match, h, a, xg, odds, conf, h2h)
     st.write(ai_result)
 
-    if "PLAY" in ai_result.upper():
+    verdict = extract_verdict(ai_result)
+
+    if verdict == "PLAY":
         st.markdown("<div class='green big'>PLAY</div>", unsafe_allow_html=True)
     else:
         st.markdown("<div class='red big'>NO PLAY</div>", unsafe_allow_html=True)
